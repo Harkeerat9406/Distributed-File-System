@@ -38,6 +38,8 @@ public class MasterApiServer {
             
             // Define the REST API endpoint for frontend uploads
             server.createContext("/upload", new UploadHandler());
+
+            server.createContext("/download", new DownloadHandler());
             
             // Use a thread pool to handle multiple web requests at once
             server.setExecutor(Executors.newFixedThreadPool(10)); 
@@ -69,6 +71,12 @@ public class MasterApiServer {
             if ("POST".equals(exchange.getRequestMethod())) {
                 System.out.println("Receiving file upload from frontend...");
                 
+                String query= exchange.getRequestURI().getQuery();
+                String filename= (query!=null && query.contains("filename="))
+                        ? query.split("filename=")[1].split("&")[0]
+                        : "uploaded_file.bin";  // Fallback name just in case
+
+
                 try (InputStream is = exchange.getRequestBody()) {
                     // Read the entire incoming file into memory (the buffer)
                     ByteArrayOutputStream buffer = new ByteArrayOutputStream();
@@ -82,8 +90,7 @@ public class MasterApiServer {
                     System.out.println("File received. Total size: " + completeFileBytes.length + " bytes.");
 
                     // 3. THE CORE ALGORITHM: Split the file into chunks
-                    // TODO: "uploaded_file.txt is a dummy name"
-                    splitIntoChunks(completeFileBytes, "uploaded_file.txt");
+                    splitIntoChunks(completeFileBytes, filename);
 
                     // Send a success response back to the browser
                     String response = "Upload and split successful!";
@@ -150,6 +157,7 @@ public class MasterApiServer {
                 try (java.net.Socket socket = new java.net.Socket(ip, port);
                     java.io.DataOutputStream out = new java.io.DataOutputStream(socket.getOutputStream())) {
                     
+                    out.writeUTF("STORE");
                     out.writeUTF(chunkId); 
                     out.writeInt(length);  
                     out.write(chunkData);  
@@ -165,5 +173,86 @@ public class MasterApiServer {
         
         namespaceMap.put(filename, fileMetadata);
         System.out.println("Successfully recorded " + filename + " with full replication.");
+    }
+
+
+    /**
+     * Reconstructs a file from chunks and streams it back to the client.
+     */
+    class DownloadHandler implements HttpHandler {
+        @Override
+        public void handle(HttpExchange exchange) throws IOException {
+            exchange.getResponseHeaders().add("Access-Control-Allow-Origin", "*");
+
+            if ("GET".equals(exchange.getRequestMethod())) {
+                // Look for the filename in the URL (e.g., /download?filename=pom.xml)
+                String query = exchange.getRequestURI().getQuery();
+                String filename = query != null && query.contains("=") ? query.split("=")[1] : null;
+                
+                if (filename == null || !namespaceMap.contains(filename)) {
+                    String error = "File not found in the cluster!";
+                    exchange.sendResponseHeaders(404, error.length());
+                    exchange.getResponseBody().write(error.getBytes());
+                    exchange.getResponseBody().close();
+                    return;
+                }
+
+                FileMetadata metadata = namespaceMap.get(filename);
+                byte[] completeFile = new byte[(int) metadata.getFileSize()];
+                int offset = 0;
+
+                System.out.println("Starting download assembly for: " + filename);
+
+                // Stitch the chunks together sequentially
+                for (ChunkInfo chunk : metadata.getChunks()) {
+                    boolean chunkRecovered = false;
+                    
+                    // THE FAULT TOLERANCE MAGIC: 
+                    // We loop through the node locations. If Node A is dead, we instantly try Node B!
+                    for (String nodeAddress : chunk.getNodeLocations()) {
+                        String[] hostAndPort = nodeAddress.split(":");
+                        try (java.net.Socket socket = new java.net.Socket(hostAndPort[0], Integer.parseInt(hostAndPort[1]));
+                            java.io.DataOutputStream out = new java.io.DataOutputStream(socket.getOutputStream());
+                            java.io.DataInputStream in = new java.io.DataInputStream(socket.getInputStream())) {
+                            
+                            out.writeUTF("READ");
+                            out.writeUTF(chunk.getChunkId());
+                            out.flush();        // prevent infinite buffer for download
+                            
+                            int length = in.readInt();
+                            if (length > 0) {
+                                byte[] chunkData = new byte[length];
+                                in.readFully(chunkData);
+                                
+                                // Paste the chunk bytes into the master file array
+                                System.arraycopy(chunkData, 0, completeFile, offset, length);
+                                offset += length;
+                                chunkRecovered = true;
+                                System.out.println("Successfully pulled chunk " + chunk.getChunkId() + " from " + nodeAddress);
+                                 break; // We got the chunk, stop asking other nodes!
+                            }
+                        } catch (Exception e) {
+                            System.err.println("Node " + nodeAddress + " failed to provide chunk. Trying backup replica...");
+                        }
+                    }
+                    
+                    if (!chunkRecovered) {
+                        String error = "CRITICAL: File corrupted. All replicas of a chunk are offline.";
+                        exchange.sendResponseHeaders(500, error.length());
+                        exchange.getResponseBody().write(error.getBytes());
+                        exchange.getResponseBody().close();
+                        return;
+                    }
+                }
+                
+                // Success! Send the fully assembled file back to the user
+                exchange.getResponseHeaders().add("Content-Disposition", "attachment; filename=\"" + filename + "\"");
+                exchange.sendResponseHeaders(200, completeFile.length);
+                try (java.io.OutputStream os = exchange.getResponseBody()) {
+                    os.write(completeFile);
+                }
+                System.out.println("Download complete!");
+            }
+        }
     }
 }

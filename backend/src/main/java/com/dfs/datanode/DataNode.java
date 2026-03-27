@@ -2,9 +2,9 @@ package com.dfs.datanode;
 
 import java.io.DataInputStream;
 import java.io.IOException;
-import java.io.PrintWriter;
 import java.net.ServerSocket;
 import java.net.Socket;
+import java.io.PrintWriter;
 
 public class DataNode {
     
@@ -48,7 +48,7 @@ public class DataNode {
     }
 
     /**
-     * Opens a ServerSocket to catch incoming chunks from the Master Node.
+     * Opens a ServerSocket to catch incoming chunks and read commands from the Master Node.
      */
     private void startChunkListener() {
         Thread listenerThread = new Thread(() -> {
@@ -59,17 +59,36 @@ public class DataNode {
                     try (Socket masterConnection = serverSocket.accept();
                         DataInputStream in = new DataInputStream(masterConnection.getInputStream())) {
                         
-                        // Read the chunk ID, size, and the raw bytes
-                        String chunkId = in.readUTF();
-                        int length = in.readInt();
-                        byte[] data = new byte[length];
-                        in.readFully(data);
+                        // 1. Read the command string first!
+                        String command = in.readUTF();
                         
-                        // Save it to the hard drive!
-                        storage.saveChunk(chunkId, data);
+                        if ("STORE".equals(command)) {
+                            // Master wants to save a file here
+                            String chunkId = in.readUTF();
+                            int length = in.readInt();
+                            byte[] data = new byte[length];
+                            in.readFully(data);
+                            storage.saveChunk(chunkId, data);
+                            
+                        } else if ("READ".equals(command)) {
+                            // Master is asking for a file back
+                            String chunkId = in.readUTF();
+                            byte[] data = storage.readChunk(chunkId);
+                            
+                            java.io.DataOutputStream out = new java.io.DataOutputStream(masterConnection.getOutputStream());
+                            if (data != null) {
+                                out.writeInt(data.length);
+                                out.write(data);
+                            } else {
+                                out.writeInt(-1); // Tell Master the chunk wasn't found
+                            }
+                            
+                            // THE FIX: Force the Data Node to send the file immediately
+                            out.flush(); 
+                        }
                         
                     } catch (IOException e) {
-                        System.err.println("Error receiving chunk: " + e.getMessage());
+                        System.err.println("Error processing Master request: " + e.getMessage());
                     }
                 }
             } catch (IOException e) {
@@ -84,7 +103,6 @@ public class DataNode {
         Thread heartbeatThread = new Thread(() -> {
             while (!heartbeatSocket.isClosed()) {
                 try {
-                    // Tell the master our exact listening port
                     out.println("HEARTBEAT " + myPort);
                     Thread.sleep(5000); 
                 } catch (InterruptedException e) {

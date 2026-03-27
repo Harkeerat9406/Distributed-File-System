@@ -3,6 +3,7 @@ package com.dfs.datanode;
 import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.nio.file.Files; // Added this import so we can read files quickly!
 
 public class ChunkStorage {
 
@@ -37,5 +38,21 @@ public class ChunkStorage {
             System.err.println("Disk I/O Error while saving chunk " + chunkId + ": " + e.getMessage());
             return false;
         }
+    }
+
+    // THE MISSING PIECE: The ability to read the bytes back off the disk!
+    public byte[] readChunk(String chunkId) {
+        File chunkFile = new File(storageDirectory + chunkId + ".chunk");
+        if (chunkFile.exists()) {
+            try {
+                // We use Java NIO to read the entire chunk off the hard drive instantly
+                return Files.readAllBytes(chunkFile.toPath());
+            } catch (IOException e) {
+                System.err.println("Failed to read chunk from disk: " + e.getMessage());
+            }
+        } else {
+            System.err.println("Chunk not found on disk: " + chunkId);
+        }
+        return null;
     }
 }
