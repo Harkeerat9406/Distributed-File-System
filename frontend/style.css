@@ -1,0 +1,96 @@
+:root {
+    --bg-color: #0f172a;
+    --panel-bg: #1e293b;
+    --text-main: #f8fafc;
+    --text-muted: #94a3b8;
+    --accent: #3b82f6;
+    --success: #10b981;
+    --danger: #ef4444;
+    --border: #334155;
+}
+
+body {
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--bg-color);
+    color: var(--text-main);
+    margin: 0;
+    padding: 2rem;
+}
+
+h1, h2 { margin-top: 0; }
+
+.grid {
+    display: grid;
+    grid-template-columns: 1fr 2fr;
+    gap: 2rem;
+}
+
+.panel {
+    background-color: var(--panel-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    padding: 1.5rem;
+    box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+}
+
+/* Node Styling */
+.node-card {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background: #253347;
+    padding: 1rem;
+    border-radius: 6px;
+    margin-bottom: 0.5rem;
+    border-left: 4px solid var(--success);
+}
+
+.status-dot {
+    height: 10px; width: 10px;
+    background-color: var(--success);
+    border-radius: 50%; display: inline-block;
+    margin-right: 8px;
+}
+
+button {
+    background-color: var(--accent); color: white;
+    border: none; padding: 0.5rem 1rem; border-radius: 4px;
+    cursor: pointer; font-weight: bold; transition: 0.2s;
+}
+ 
+button:hover { opacity: 0.8; }
+
+.btn-danger { background-color: var(--danger); }
+        
+
+/* File Explorer */
+.upload-zone {
+    border: 2px dashed var(--border);
+    padding: 2rem; text-align: center;
+    border-radius: 6px; margin-bottom: 1.5rem;
+    color: var(--text-muted); transition: 0.2s;
+}
+
+.upload-zone:hover { border-color: var(--accent); color: var(--text-main); }
+
+.file-card {
+    background: #253347; padding: 1rem; border-radius: 6px; margin-bottom: 1rem;
+}
+
+.file-header {
+    display: flex; justify-content: space-between; border-bottom: 1px solid var(--border);
+    padding-bottom: 0.5rem; margin-bottom: 0.5rem;
+}
+
+.chunk-list {
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 0.5rem;
+}
+
+.chunk-box {
+    background: #1e293b; padding: 0.5rem; border-radius: 4px; font-size: 0.85rem; border: 1px solid var(--border);
+}
+
+.node-tag {
+    display: inline-block; background: var(--accent); color: white;
+    padding: 2px 6px; border-radius: 12px; font-size: 0.75rem; margin: 2px;
+}
