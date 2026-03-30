@@ -43,7 +43,7 @@ public class DataNode {
             try (ServerSocket serverSocket = new ServerSocket(myPort)) {
                 while (true) {
                     try (Socket masterConnection = serverSocket.accept();
-                         DataInputStream in = new DataInputStream(masterConnection.getInputStream())) {
+                        DataInputStream in = new DataInputStream(masterConnection.getInputStream())) {
                         
                         String command = in.readUTF();
                         

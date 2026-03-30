@@ -126,7 +126,7 @@ public class MasterApiServer {
         int offset = 0;
         
         // THE UPGRADE: How many copies of each chunk do we want?
-        int REPLICATION_FACTOR = 2; 
+        int REPLICATION_FACTOR = 3; 
 
         for (int i = 0; i < totalChunks; i++) {
             int length = Math.min(CHUNK_SIZE, fileBytes.length - offset);
